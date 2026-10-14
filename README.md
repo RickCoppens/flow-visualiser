@@ -1,6 +1,6 @@
 # flow-visualiser
 
-Interactieve, lokaal draaiende tool om processen vanuit hun gewenste uitkomst opnieuw te ontwerpen (SOLL). Visualiseer benodigde datapunten, afhankelijkheden en beslislogica, met zichtbare aannames en gaten.
+Interactieve, lokaal draaiende tool om processen vanuit hun gewenste uitkomst opnieuw te ontwerpen (SOLL). Visualiseer benodigde datapunten, afhankelijkheden en beslislogica, met zichtbare aannames en onzekerheden.
 
 Visie, domeinmodel en technische keuzes: [docs/ANKERPUNT.md](docs/ANKERPUNT.md). Regels voor AI-agents: [AGENTS.md](AGENTS.md).
 
@@ -32,13 +32,19 @@ Eenmalig installeren van npm-pakketten vereist toegang tot het pakketregister. *
 
 1. Maak een canvas en voeg een deliverable toe. Dit maakt zo nodig ook een proces.
 2. Bewerk het catalogusitem van het datapunt: term, definitie en kwaliteitscriteria. Items zijn globaal, dus wijzigingen werken in alle canvassen door.
-3. Kies **Input toevoegen** op de gegevenskaart en kies een bestaand of nieuw gegeven. Klik op de pijl of de plus om een transformatie tussen beide gegevens te zetten. Een directe verbinding zonder transformatie blijft bewaard met een signaal.
+3. Kies **Input toevoegen** op de gegevenskaart en kies een bestaand of nieuw gegeven. Klik op de pijl of de plus om een transformatie tussen beide gegevens te zetten. De plus verschijnt bij hover over de pijl of bij focus. Een directe verbinding zonder transformatie blijft bewaard met een signaal.
 4. Kies **Forcze-uitvraag/beoordeling**, **API**, **Automatisering** of **Agentic/genAI**. Beschrijf de werking in de bijbehorende eigenschappen. De pijlen wijzen van input via transformatie naar het resultaat; de deliverable blijft bovenaan. Klikken op een pijl bij een bestaande transformatie opent die stap.
-5. Gebruik processen als filter, klap takken in en bekijk **Gaten & signalen** voor onzekerheid en ontbrekende beschrijvingen.
+5. Gebruik processen als filter, klap takken in en bekijk **Aandachtspunten** in het hoofdmenu. De dropdown biedt **Onzekerheden** en **Structuursignalen**; een categorie opent het rechterpaneel.
+
+De hele linkerzijbalk open en sluit je via **Navigatie**. Deze begint ingeklapt en bevat canvassen, catalogus en procesfilters. Canvas verwijderen staat bij het betreffende canvas in deze lijst. Klik op het potlood naast de titel om de canvasnaam inline te wijzigen: klik buiten het veld of gebruik Enter om over te nemen; Escape annuleert. Een lege naam wordt getoond als **Naamloos canvas**.
+
+In het hoofdmenu staat alleen **+ Deliverable** als invoeractie. Nieuwe inputs en transformaties voeg je vanuit de boom toe; er is geen aparte ribbon. Het eigenschappenpaneel sluit zodra je geen element meer selecteert. Expliciet geopende panelen, zoals catalogus en aandachtspunten, blijven open totdat je ze sluit. Gesloten zijpanelen geven hun ruimte terug aan de graaf.
+
+De teller bij **Aandachtspunten** volgt het actieve procesfilter en telt unieke onzekere elementen plus structuursignalen. Een element met zowel onzekerheid als een structuurprobleem kan dus meer dan één aandachtspunt opleveren. De dropdown toont de uitsplitsing; inklappen van takken verandert deze telling niet. Onzekerheden worden ook per deliverable getoond, inclusief het eigen onzekere element; gedeelde elementen tellen in het totaal slechts eenmaal. Onzekere elementen buiten deliverables blijven in het overzicht beschikbaar.
 
 De layout is automatisch; knooppunten versleep je niet. Gedeelde elementen blijven uniek. Cyclische relaties worden gestreept getoond. Conflicten zoals meerdere producenten worden gesignaleerd, niet weggegooid of geblokkeerd. Nieuwe datapunten starten als *ontbrekend*, transformaties als *onbeschreven*.
 
-Transformatiekaarten hebben een eigen vorm, typepictogram en accent. De kaart toont het type en **Beschikbaar**, **Nog te bouwen** of **Nog te bepalen**. Beschikbaarheid begint op Nog te bepalen en staat los van ontwerpzekerheid en gaten. Bij Nog te bouwen kun je een optioneel **EPIC-nummer** invullen. Wisselen van beschikbaarheid of type wist geen verborgen beschrijvingen. Het oude logische type staat optioneel onder **Logisch type en ontwerpzekerheid**.
+Transformatiekaarten hebben een eigen vorm, typepictogram en accent. De kaart toont het type en **Beschikbaar**, **Nog te bouwen** of **Nog te bepalen**. Beschikbaarheid begint op Nog te bepalen en staat los van ontwerpzekerheid en onzekerheden. Bij Nog te bouwen kun je een optioneel **EPIC-nummer** invullen. Wisselen van beschikbaarheid of type wist geen verborgen beschrijvingen. Het oude logische type staat optioneel onder **Logisch type en ontwerpzekerheid**.
 
 Forcze biedt uitvraag/beoordeling en een instructiebeschrijving. API toont operatie en gekoppelde input-/outputlabels. Automatisering biedt businessrule en voorwaarden. Agentic biedt taak/instructie, kaders en menselijke controle. Alles is ontwerpmetadata: de app voert geen formulieren, API-aanroepen, regels of genAI uit.
 
@@ -48,7 +54,7 @@ Gebruik uitsluitend labels en beschrijvingen. Voer nooit persoonsgegevens, polis
 
 ## Opslag en back-ups
 
-Wijzigingen worden automatisch in **IndexedDB** opgeslagen. Kijk naar de opslagstatus bovenaan voordat je afsluit. Bij een opslagfout blijft je werk in het geopende venster beschikbaar: probeer opnieuw op te slaan of exporteer het canvas voordat je afsluit.
+Wijzigingen worden automatisch in **IndexedDB** opgeslagen. Tijdens het bewaren verschijnt **Opslaan…**; na afloop verdwijnt deze melding. Bij een opslagfout verschijnt een foutmelding met **Opnieuw opslaan**. Je werk blijft dan in het geopende venster beschikbaar: probeer opnieuw op te slaan of exporteer het canvas voordat je afsluit.
 
 Gebruik de app in **één tabblad tegelijk**. Er is geen synchronisatie tussen tabbladen. Gebruik steeds dezelfde browser, hetzelfde profiel en `http://localhost:4173`. Wissen van browsergegevens, privémodus of een andere origin kan je lokale werk onbereikbaar maken of verwijderen.
 
@@ -64,12 +70,11 @@ Undo/redo geldt voor bewerkingen binnen de geopende appsessie, ook voor import, 
 |---|---|
 | Tab / Shift+Tab | Navigeren tussen bedienbare onderdelen |
 | Enter op een knooppunt | Eigenschappen openen |
-| Alt+D | Datapunt toevoegen; bij geselecteerde transformatie als input |
-| Alt+T | Typekeuze voor transformatie openen; bij geselecteerd datapunt als producent |
-| Ctrl+Z | Laatste appbewerking ongedaan maken |
-| Ctrl+Shift+Z / Ctrl+Y | Appbewerking opnieuw uitvoeren |
+| Enter op een verbinding | Transformatie invoegen of openen |
 
-In tekstvelden behouden toetsen hun normale tekstbewerkingsgedrag. Alternatieven voor sneltoetsen en het trekken van een verbinding zijn altijd via knoppen en keuzelijsten beschikbaar.
+De app heeft geen eigen sneltoetscombinaties. Gebruik de knoppen **Ongedaan** en **Opnieuw** voor herstel van appbewerkingen. In tekstvelden behouden toetsen hun normale tekstbewerkingsgedrag. Verbindingen kunnen ook via knoppen en keuzelijsten worden gemaakt.
+
+De werkruimte bevat geen branding, slogans of permanente uitlegblokken. Lege schermen tonen een korte toestand en relevante acties. Enkele beschrijvende velden hebben een placeholder die het verwachte soort beschrijving verduidelijkt; deze aanwijzing is geen ingevulde of opgeslagen waarde. Veldlabels, noodzakelijke invoerhints en signalen blijven zichtbaar.
 
 ## Ontwikkelen en controleren
 

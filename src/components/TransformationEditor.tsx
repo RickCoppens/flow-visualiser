@@ -10,6 +10,12 @@ const descriptions = {
   agentic: 'Beschrijf de taak voor genAI en de kaders waarbinnen deze stap moet werken.',
 }
 const logicLabels = { forcze: 'Uitvraag of beoordelingsinstructie', api: 'Beschrijving API-uitvraag', automation: 'Businessrule', agentic: 'Taak en instructie voor genAI' }
+const logicPlaceholders = {
+  forcze: 'Beschrijf welke gegevens worden uitgevraagd of beoordeeld',
+  api: 'Beschrijf welke gegevens de operatie moet leveren',
+  automation: 'Beschrijf hoe de inputs het resultaat bepalen',
+  agentic: 'Beschrijf de taak en de verwachte vorm van het resultaat',
+}
 
 export function TransformationChoices({ onChoose }: { onChoose: (type: Transformation['realization']) => void }) {
   return <div className="transformation-choices">{realizationTypes.map(type =>
@@ -27,22 +33,21 @@ export function TransformationEditor({ transformation: item, canvas, catalog, on
     return canvas.dataPoints.filter(point => ids.includes(point.id)).map(point => catalog.find(entry => entry.id === point.catalogItemId)?.term ?? 'Catalogusverwijzing ontbreekt')
   }
   return <>
-    <div className={`transformation-heading realization-${item.realization}`}><Icon name={item.realization} /><div><b>{realizationLabels[item.realization]}</b><p>{descriptions[item.realization]}</p></div></div>
     <Field label="Naam transformatie" value={item.name} onChange={name => onChange({ name })} />
     <label className="field"><span>Type transformatie</span><select aria-label="Type transformatie" value={item.realization} onChange={event => onChange({ realization: event.target.value as Transformation['realization'] })}>{realizationTypes.map(type => <option key={type} value={type}>{realizationLabels[type]}</option>)}</select></label>
     <label className="field"><span>Beschikbaarheid</span><select aria-label="Beschikbaarheid" value={item.availability} onChange={event => onChange({ availability: event.target.value as Transformation['availability'] })}>{Object.entries(availabilityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    {item.availability === 'toBuild' && <Field label="EPIC-nummer" value={item.epic} onChange={epic => onChange({ epic })} hint="Optionele verwijzing naar de nog te bouwen stap." />}
+    {item.availability === 'toBuild' && <Field label="EPIC-nummer (optioneel)" value={item.epic} onChange={epic => onChange({ epic })} />}
     <section className="transformation-ports" aria-label="Inputs en output"><h3>Inputs en output</h3>
       <div><b>Inputs</b>{labels(inputs).map((label, index) => <span key={index}>{label}</span>)}{!labels(inputs).length && <span className="muted">Nog geen input gekoppeld.</span>}</div>
       <div><b>Output</b>{labels(outputs).map((label, index) => <span key={index}>{label}</span>)}{!labels(outputs).length && <span className="muted">Nog geen output gekoppeld.</span>}</div>
     </section>
     {item.realization === 'forcze' && <label className="field"><span>Interactie in Forcze</span><select aria-label="Interactie in Forcze" value={item.interaction} onChange={event => onChange({ interaction: event.target.value as Transformation['interaction'] })}><option value="request">Uitvraag</option><option value="assessment">Beoordeling</option><option value="both">Uitvraag en beoordeling</option></select></label>}
-    {item.realization === 'api' && <Field label="API en operatie" value={item.apiOperation} onChange={apiOperation => onChange({ apiOperation })} hint="Alleen een naam of beschrijving, geen credentials of requestwaarden." />}
-    <Field label={logicLabels[item.realization]} multiline value={item.logic} onChange={logic => onChange({ logic })} hint="Beschrijf de gewenste werking, nooit inhoudelijke waarden." />
-    {item.realization === 'automation' && <Field label="Voorwaarden voor de businessrule" multiline value={item.conditions} onChange={conditions => onChange({ conditions })} />}
+    {item.realization === 'api' && <Field label="API en operatie" value={item.apiOperation} placeholder="Naam van de API en de benodigde operatie" onChange={apiOperation => onChange({ apiOperation })} hint="Alleen een naam of beschrijving, geen credentials of requestwaarden." />}
+    <Field label={logicLabels[item.realization]} multiline value={item.logic} placeholder={logicPlaceholders[item.realization]} onChange={logic => onChange({ logic })} hint="Beschrijf de gewenste werking, nooit inhoudelijke waarden." />
+    {item.realization === 'automation' && <Field label="Voorwaarden voor de businessrule" multiline value={item.conditions} placeholder="Beschrijf wanneer de regel van toepassing is" onChange={conditions => onChange({ conditions })} />}
     {item.realization === 'agentic' && <>
-      <Field label="Kaders voor genAI" multiline value={item.guardrails} onChange={guardrails => onChange({ guardrails })} />
-      <Field label="Menselijke controle" multiline value={item.humanReview} onChange={humanReview => onChange({ humanReview })} />
+      <Field label="Kaders voor genAI" multiline value={item.guardrails} placeholder="Beschrijf de grenzen en vereisten voor de taak" onChange={guardrails => onChange({ guardrails })} />
+      <Field label="Menselijke controle" multiline value={item.humanReview} placeholder="Beschrijf wat een mens moet controleren" onChange={humanReview => onChange({ humanReview })} />
     </>}
     <details className="logical-details"><summary>Logisch type en ontwerpzekerheid</summary>
       <label className="field"><span>Logisch type (optioneel)</span><select aria-label="Logisch type (optioneel)" value={item.type} onChange={event => onChange({ type: event.target.value as Transformation['type'] })}><option value="">Niet gekozen</option>{transformationTypes.map(type => <option key={type} value={type}>{typeLabels[type]}</option>)}</select></label>

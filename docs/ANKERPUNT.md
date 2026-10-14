@@ -52,7 +52,7 @@ De tool schetst uitsluitend de **SOLL-situatie**: wat nodig is. De analyse van d
 | eindresultaat | `result` (afgeleide rol) |
 | bekend / aanname / ontbrekend | `known` / `assumed` / `missing` |
 | beschreven / onbeschreven / aanname | `described` / `undescribed` / `assumed` |
-| gat | `gap` |
+| onzekerheid | `gap` (bestaande interne benaming) |
 | afhankelijkheid | `dependency` (edge) |
 
 ## 4. Domeinmodel
@@ -134,7 +134,7 @@ De typespecifieke UI bevat uitsluitend beschrijvende eigenschappen:
 - **Automatisering:** businessrule en beschrijving van toepassingsvoorwaarden.
 - **Agentic/genAI:** taak/instructie, kaders en beschrijving van menselijke controle.
 
-Typespecifieke teksten blijven behouden bij wisselen van type. Logica blijft dezelfde gedeelde beschrijving van de werking. Beschikbaarheid begint bij nieuwe en gemigreerde transformaties op **Nog te bepalen** en verandert de gatentelling niet. Bestaande v1-transformaties krijgen bij migratie **Automatisering**, met behoud van hun logische type, logica en relaties.
+Typespecifieke teksten blijven behouden bij wisselen van type. Logica blijft dezelfde gedeelde beschrijving van de werking. Beschikbaarheid begint bij nieuwe en gemigreerde transformaties op **Nog te bepalen** en verandert de onzekerhedentelling niet. Bestaande v1-transformaties krijgen bij migratie **Automatisering**, met behoud van hun logische type, logica en relaties.
 
 ### 4.6 Proces (`Process`)
 
@@ -142,19 +142,21 @@ Een proces is de hele beslisboom van één of meer deliverables. Het heeft naam 
 
 ## 5. Gedrag
 
-### 5.1 Gaten
+### 5.1 Onzekerheden en aandachtspunten
 
-Een **gat** is een datapunt met status `missing` of `assumed`, of een transformatie met status `undescribed` of `assumed`.
+Een **onzekerheid** is een datapunt met status `missing` of `assumed`, of een transformatie met status `undescribed` of `assumed`. De bestaande interne codebenaming `gap` blijft behouden.
 
 - Elk element toont zijn status met een duidelijk icoon.
-- Elk knooppunt toont **"onderliggende gaten: n"** (aantal gaten in de onderliggende boom). Dit is een telling, geen betrouwbaarheidsscore.
-- Per deliverable is er een **gatenoverzicht**.
+- Elk knooppunt toont **"Onderliggende onzekerheden: n"** (aantal onzekerheden in de onderliggende boom). Dit is een telling, geen betrouwbaarheidsscore.
+- Per deliverable is er een **onzekerhedenoverzicht**.
 
-Tellingen gebruiken unieke bereikbare elementen, ook bij gedeelde knooppunten en cycli. Een knooppunt telt zichzelf niet mee bij onderliggende gaten; het deliverable-overzicht toont ook het eigen gat. Nieuwe datapunten beginnen als `missing`, transformaties als `undescribed`.
+Tellingen gebruiken unieke bereikbare elementen, ook bij gedeelde knooppunten en cycli. Een knooppunt telt zichzelf niet mee bij onderliggende onzekerheden; het deliverable-overzicht toont ook de eigen onzekerheid. Nieuwe datapunten beginnen als `missing`, transformaties als `undescribed`.
+
+**Aandachtspunten** in het hoofdmenu toont één totaal: unieke onzekere elementen plus het aantal structuursignalen, binnen het actieve procesfilter of anders het hele canvas. Een element kan zowel onzeker zijn als structuursignalen hebben. Ingeklapte takken veranderen de telling niet. De dropdown splitst uit naar **Onzekerheden** en **Structuursignalen** en opent de gekozen categorie in het rechterpaneel. Onzekere elementen buiten deliverables blijven in het overzicht beschikbaar. Klikken op een aandachtspunt selecteert het element en brengt het in beeld.
 
 ### 5.2 Signalering in plaats van validatie
 
-De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) op:
+De tool legt geen harde regels op. Wel wijst de UI (ook onder Structuursignalen) op:
 
 - cycli (blijven tekenbaar, terugverwijzende pijlen apart weergegeven)
 - transformatie zonder input of zonder output
@@ -166,13 +168,17 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 
 - Volledig automatische **top-down layout** (deliverable bovenaan, bijvoorbeeld met ELK). Geen handmatig verslepen.
 - Deelbomen zijn in te klappen.
-- Snelle invoer via het toetsenbord.
+- Toetsenbordbediening via Tab en Enter; geen eigen app-sneltoetscombinaties.
 - Undo/redo.
 - Filter en kleur per proces.
 
-De werkruimte heeft links canvassen en processen, centraal de graaf en rechts eigenschappen. Invoer begint bij de deliverable. Cyclische relaties krijgen afwijkende pijlen. Inklappen verbergt gedeelde elementen alleen als geen andere open tak ze nodig heeft. ELK is de voorkeurslayout, te verifiëren met een proef.
+De werkruimte heeft links canvassen en processen, centraal de graaf en rechts eigenschappen. De volledige linkerzijbalk begint ingeklapt en is via **Navigatie** in het hoofdmenu te openen en sluiten. Deze keuze geldt alleen voor de geopende sessie. Het rechterpaneel verschijnt bij selectie of een expliciet geopende functie, en heeft altijd een sluitknop. Deselecteren sluit alleen eigenschappen; expliciet geopende panelen blijven open. Gesloten panelen geven hun ruimte volledig terug aan de graaf. Invoer begint bij de deliverable. Cyclische relaties krijgen afwijkende pijlen. Inklappen verbergt gedeelde elementen alleen als geen andere open tak ze nodig heeft. ELK is de voorkeurslayout, te verifiëren met een proef.
 
-**Input toevoegen** op een gegevenskaart biedt een bestaand of nieuw gegeven en maakt een directe verbinding. Klik op de pijl of de zichtbare plus om een van de vier transformatietypen te kiezen. Invoegen vervangt uitsluitend die verbinding door twee verbindingen en een transformatie; gedeelde relaties blijven behouden. Dit is één herstelbare bewerking. Klikken op een verbinding met een bestaande transformatie opent de eigenschappen van die stap, zonder een tweede transformatie in te voegen. De werkbalk en sneltoets blijven alternatieven om een losse transformatie te maken.
+**Input toevoegen** op een gegevenskaart biedt een bestaand of nieuw gegeven en maakt een directe verbinding. Klik op de pijl of de plus, die bij hover of focus verschijnt, om een van de vier transformatietypen te kiezen. Invoegen vervangt uitsluitend die verbinding door twee verbindingen en een transformatie; gedeelde relaties blijven behouden. Dit is één herstelbare bewerking. Klikken op een verbinding met een bestaande transformatie opent de eigenschappen van die stap, zonder een tweede transformatie in te voegen. De ribbon vervalt: het hoofdmenu biedt alleen **+ Deliverable**, inputs en transformaties worden vanuit de boom toegevoegd.
+
+De canvasnaam is inline aan te passen via een potlood naast de titel in het hoofdmenu. Blur of Enter neemt de naam over, Escape annuleert. Een lege naam krijgt alleen het weergavelabel **Naamloos canvas**. Canvas verwijderen staat bij het betreffende canvas in de navigatie, met bevestiging en herstel via Ongedaan.
+
+De werkruimte bevat geen branding, slogans, functieloze illustraties of permanente uitlegblokken. Lege toestanden tonen alleen een korte toestand en relevante acties. Functionele labels, tellers, ontwerpstatussen, signalen en noodzakelijke veiligheids- en formaatinstructies blijven behouden. Selectieve placeholders verduidelijken het verwachte soort beschrijving zonder inhoudelijke voorbeeldwaarden of standaardwaarden op te slaan. Ongedaan maken en opnieuw uitvoeren blijven via knoppen beschikbaar; normale toetsenbordbediening en tekstbewerking blijven intact.
 
 Verwijderen van een graafelement verwijdert alleen dat element en zijn verbindingen, niet de onderliggende tak. Gebruikte catalogusitems blijven behouden tenzij een vervangend item wordt gekozen. Cataloguswijzigingen werken direct door in alle gekoppelde canvassen.
 
@@ -187,7 +193,7 @@ Verwijderen van een graafelement verwijdert alleen dat element en zijn verbindin
 - Migraties op `schemaVersion` zijn verplicht bij modelwijzigingen.
 - Schemaversie 2 voegt realisatietype, beschikbaarheid, EPIC en typespecifieke beschrijvingen toe. IndexedDB v1 en JSON-bestanden v1 migreren automatisch; de interne afhankelijkheidsrichting verandert niet.
 - Let op: IndexedDB is gebonden aan adres en poort. Daarom draait de app altijd op dezelfde vaste poort.
-- Wijzigingen worden automatisch opgeslagen met zichtbare status en foutmelding. Undo/redo geldt voor de geopende appsessie, inclusief catalogusbewerkingen. Een voorlopig cataloguslabel voorkomt blokkeren bij onvolledige invoer.
+- Wijzigingen worden automatisch opgeslagen met tijdelijke feedback tijdens opslaan en een expliciete foutmelding met herstelactie bij fouten. Er is geen permanente succesmelding. Undo/redo geldt voor de geopende appsessie, inclusief catalogusbewerkingen. Een voorlopig cataloguslabel voorkomt blokkeren bij onvolledige invoer.
 
 ## 7. Technische keuzes
 
@@ -217,7 +223,7 @@ Verwijderen van een graafelement verwijdert alleen dat element en zijn verbindin
 - Meerdere canvassen als save files
 - Globale data catalogus
 - Datapunten, transformaties, afhankelijkheden, deliverables, processen
-- Statussen, gaten, gatenoverzicht en teller
+- Statussen, onzekerheden, aandachtspunten en teller
 - Automatische top-down layout met inklappen
 - Signalering
 - Undo/redo
@@ -262,6 +268,11 @@ Verwijderen van een graafelement verwijdert alleen dat element en zijn verbindin
 | 20 | Vier hoofdtypen met eigen UI: Forcze, API, Automatisering en Agentic/genAI. Alleen toekomstige, beschrijvende realisatie; geen uitvoering of externe koppelingen. Logisch type blijft optioneel. |
 | 21 | Beschikbaar, Nog te bouwen en Nog te bepalen staan los van ontwerpzekerheid. EPIC is optioneel bij Nog te bouwen; verborgen tekst blijft behouden. |
 | 22 | Op uitdrukkelijke gebruikerskeuze worden alle v1-transformaties Automatisering. Schemaversie 2 behoudt oude logica, typen en verbindingen bij opslag- en bestandsmigratie. |
+| 23 | Op uitdrukkelijke gebruikerskeuze vervallen branding, slogans, functieloze illustraties, permanente uitlegblokken en eigen app-sneltoetsen. Bediening via knoppen en Tab/Enter blijft behouden. Selectieve placeholders ondersteunen beschrijvende invoer; noodzakelijke invoerhints blijven zichtbaar. |
+| 24 | Automatische browseropslag blijft behouden, met feedback alleen tijdens opslaan en bij fouten. JSON-export is een afzonderlijke back-up, geen vereiste voor automatisch bewaren. |
+| 25 | Op gebruikersverzoek staat alleen + Deliverable in het hoofdmenu; de ribbon vervalt. Inputs en transformaties worden vanuit de boom toegevoegd. Pijlplussen verschijnen alleen bij hover of focus. |
+| 26 | De hele linkerzijbalk begint ingeklapt; rechts verschijnen eigenschappen alleen bij selectie en blijven expliciet geopende functies open tot sluiten. De canvasnaam is inline via een potlood te wijzigen; canvas verwijderen verhuist naar de navigatie. Geen nieuwe opgeslagen voorkeuren. |
+| 27 | De UI noemt gaten voortaan Onzekerheden. Aandachtspunten toont een procesgefilterd totaal van unieke onzekere elementen plus structuursignalen; een dropdown opent de gekozen categorie rechts. De bestaande interne codebenaming gap en het opslagmodel blijven ongewijzigd. |
 
 ### Open vragen
 

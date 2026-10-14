@@ -1,7 +1,10 @@
-type IconName = 'flow' | 'canvas' | 'catalog' | 'import' | 'export' | 'undo' | 'redo' | 'forcze' | 'api' | 'automation' | 'agentic'
+type IconName = 'canvas' | 'catalog' | 'import' | 'export' | 'undo' | 'redo' | 'forcze' | 'api' | 'automation' | 'agentic' | 'menu' | 'edit' | 'delete' | 'chevron'
 
 const paths: Record<IconName, string> = {
-  flow: 'M8 4h8v5H8z M3 16h6v5H3z M15 16h6v5h-6z M12 9v4 M6 16v-3h12v3',
+  menu: 'M4 6h16 M4 12h16 M4 18h16',
+  edit: 'm15 4 5 5 M4 20l5-1L21 7l-5-5L4 14z',
+  delete: 'M3 6h18 M9 6V3h6v3 M6 6l1 15h10l1-15 M10 10v7 M14 10v7',
+  chevron: 'm6 9 6 6 6-6',
   canvas: 'M4 4h16v16H4z M9 4v16 M4 9h16',
   catalog: 'M5 3h14v18H5z M9 7h6 M9 11h6 M9 15h3',
   import: 'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5',

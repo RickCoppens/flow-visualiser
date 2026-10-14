@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, BaseEdge, Controls, EdgeLabelRenderer, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useReactFlow, type Node, type NodeProps, type Edge, type EdgeProps } from '@xyflow/react'
 import { availabilityLabels, elements, isDataPoint, labelFor, realizationLabels, type Canvas, type CatalogItem, type Transformation } from '../domain/model'
 import { cycleEdges, gapsBelow, processMembers, roleFor, visibleElements } from '../domain/graph'
@@ -21,13 +21,18 @@ function ElementNode({ data }: NodeProps<FlowNode>) {
     {transformation && <div className={`availability availability-${transformation.availability}`}>{availabilityLabels[transformation.availability]}</div>}
     <div className={`node-status status-${data.status}`}><span aria-hidden>{data.status === 'known' || data.status === 'described' ? '✓' : data.status === 'assumed' ? '?' : '!'}</span> {statusLabels[data.status]}</div>
     {!transformation && <button className="node-add-input nodrag nopan" aria-label={`Input toevoegen: ${data.label}`} onClick={event => { event.stopPropagation(); data.addInput() }}>+ Input toevoegen</button>}
-    <div className="node-footer"><span>Onderliggende gaten: {data.gaps}</span><button className="nodrag nopan" onClick={event => { event.stopPropagation(); data.toggle() }} aria-label={data.collapsed ? `Uitklappen: ${data.label}` : `Inklappen: ${data.label}`}>{data.collapsed ? '+' : '−'}</button></div>
+    <div className="node-footer"><span>Onderliggende onzekerheden: {data.gaps}</span><button className="nodrag nopan" onClick={event => { event.stopPropagation(); data.toggle() }} aria-label={data.collapsed ? `Uitklappen: ${data.label}` : `Inklappen: ${data.label}`}>{data.collapsed ? '+' : '−'}</button></div>
     <Handle type="target" position={Position.Bottom} />
   </div>
 }
 const nodeTypes = { element: ElementNode }
-type FlowEdge = Edge<{ insert: boolean; cycle: boolean; detourX?: number; onOpen: () => void }>
+type FlowEdge = Edge<{ insert: boolean; cycle: boolean; focused: boolean; detourX?: number; onOpen: () => void }>
 function DependencyEdge(props: EdgeProps<FlowEdge>) {
+  const [hovered, setHovered] = useState(false)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(leaveTimer.current), [])
+  const enter = () => { clearTimeout(leaveTimer.current); setHovered(true) }
+  const leave = () => { leaveTimer.current = setTimeout(() => setHovered(false), 120) }
   let [path, x, y] = getSmoothStepPath(props)
   if (props.data?.detourX !== undefined) {
     x = props.data.detourX
@@ -35,8 +40,9 @@ function DependencyEdge(props: EdgeProps<FlowEdge>) {
     path = `M ${props.sourceX} ${props.sourceY} L ${props.sourceX} ${props.sourceY - 24} L ${x} ${props.sourceY - 24} L ${x} ${props.targetY + 24} L ${props.targetX} ${props.targetY + 24} L ${props.targetX} ${props.targetY}`
   }
   return <>
-    <BaseEdge id={props.id} path={path} markerEnd={props.markerEnd} style={props.style} interactionWidth={28} />
-    {props.data?.insert && <EdgeLabelRenderer><button className="edge-insert nodrag nopan" style={{ transform: `translate(-50%, -50%) translate(${x}px,${y}px)` }}
+    <g onMouseEnter={enter} onMouseLeave={leave}><BaseEdge id={props.id} path={path} markerEnd={props.markerEnd} style={props.style} interactionWidth={28} /></g>
+    {props.data?.insert && <EdgeLabelRenderer><button className={`edge-insert nodrag nopan${hovered || props.data.focused ? ' visible' : ''}`} data-edge-id={props.id}
+      onMouseEnter={enter} onMouseLeave={leave} style={{ transform: `translate(-50%, -50%) translate(${x}px,${y}px)` }}
       aria-label="Transformatie invoegen" title="Transformatie nog niet beschreven. Kies een type." onClick={event => { event.stopPropagation(); props.data?.onOpen() }}>+</button></EdgeLabelRenderer>}
     {props.data?.cycle && <EdgeLabelRenderer><span className="edge-cycle" style={{ transform: `translate(-50%, -50%) translate(${x}px,${y + 25}px)` }}>Terugverwijzing</span></EdgeLabelRenderer>}
   </>
@@ -53,6 +59,7 @@ function GraphContent(props: Props) {
   const [positions, setPositions] = useState(new Map<string, { x: number; y: number }>())
   const [error, setError] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [focusedEdgeId, setFocusedEdgeId] = useState('')
   const flow = useReactFlow()
   useEffect(() => {
     let active = true
@@ -80,7 +87,7 @@ function GraphContent(props: Props) {
       position: positions.get(element.id) ?? { x: 0, y: 0 },
       ariaLabel: labelFor(element, catalog),
       data: {
-        label: labelFor(element, catalog), status: element.status,
+          label: labelFor(element, catalog), status: element.status,
         kind: isDataPoint(element) ? roleLabels[roleFor(canvas, element.id)] : 'Transformatie',
         gaps: gapsBelow(canvas, element.id).length, shared: members.filter(set => set.has(element.id)).length > 1,
         deliverable: isDataPoint(element) && !!element.deliverableProcessIds.length,
@@ -96,6 +103,7 @@ function GraphContent(props: Props) {
     ...edge, source: edge.target, target: edge.source, type: 'dependency',
     ariaLabel: `Gegevensstroom van ${labelFor(elements(canvas).find(item => item.id === edge.target)!, catalog)} naar ${labelFor(elements(canvas).find(item => item.id === edge.source)!, catalog)}`,
     data: {
+      focused: focusedEdgeId === edge.id,
       insert: canvas.dataPoints.some(point => point.id === edge.source) && canvas.dataPoints.some(point => point.id === edge.target),
       cycle: cycles.has(edge.id),
       // Skip-layer links need a side lane so their controls do not cover intervening cards.
@@ -109,6 +117,11 @@ function GraphContent(props: Props) {
   return <>
     {error && <div role="alert" className="graph-error">{error}</div>}
     <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} nodesDraggable={false} nodesConnectable onConnect={connection => onConnect(connection.target, connection.source)}
+      onFocusCapture={event => {
+        const target = event.target instanceof Element ? event.target : null
+        setFocusedEdgeId(target?.closest('.react-flow__edge')?.getAttribute('data-id') ?? target?.closest('.edge-insert')?.getAttribute('data-edge-id') ?? '')
+      }}
+      onBlurCapture={() => setFocusedEdgeId('')}
       aria-busy={nodes.some(node => !positions.has(node.id))}
       onConnectStart={() => setConnecting(true)} onConnectEnd={() => setConnecting(false)}
       onEdgeClick={(_, edge) => props.onOpenEdge(edge.id)}
