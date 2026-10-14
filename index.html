@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://localhost:4173; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+    <title>Flow Visualiser</title>
+  </head>
+  <body>
+    <!-- THESIS: Het afhankelijkheidsontwerp staat centraal; bediening heeft minder gewicht dan inhoud.
+    OWN-WORLD: Grafiet navigatie, een licht canvas, witte inspectiepanelen en een gedempt groen actieaccent.
+    STORY: Kies een canvas, begin bij de deliverable en werk terug naar bronnen en logica.
+    FIRST VIEWPORT: Compacte werkbalk bovenaan, navigatie links, automatische graaf centraal, details rechts.
+    FORM: Desktop-analysewerkruimte; vaste driedeling blijft behouden. Geen externe assets of diensten. -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

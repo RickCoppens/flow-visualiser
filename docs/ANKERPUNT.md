@@ -22,13 +22,13 @@ Een handeling, systeem of organisatorische grens is niet automatisch een vereist
 
 - **Wat noodzakelijk is:** gegevens, logica, kwaliteitscriteria en randvoorwaarden.
 - **Hoe het nu gebeurt:** systemen, overdrachten, handmatig werk. **Buiten de scope van deze tool.**
-- **Hoe het straks kan gebeuren:** een nog te kiezen inrichting. Ook buiten v1.
+- **Hoe het straks kan gebeuren:** beschrijvende ontwerpmetadata bij transformaties: Forcze, API, automatisering of agentic/genAI. De app voert deze stappen niet uit.
 
 De tool schetst uitsluitend de **SOLL-situatie**: wat nodig is. De analyse van de huidige situatie en het terugredeneren gebeuren buiten de tool, in de analysefase.
 
 ## 2. Principes
 
-1. **Data boven proces.** Het model bevat datapunten en transformaties, geen stappen, rollen of volgorde.
+1. **Data boven proces.** Het model bevat datapunten en transformaties, geen uitvoerbare workflow, individuele uitvoerders of tijdsvolgorde. Een transformatie mag de gewenste realisatie beschrijven.
 2. **SOLL-only.** Geen velden voor huidige systemen of werkwijzen.
 3. **Alleen labels, nooit waarden.** De tool bevat namen, definities en beschrijvingen van gegevens. Nooit echte persoons-, polis- of medische gegevens. Dit is een harde ontwerpregel (AVG).
 4. **Lokaal.** Geen backend, geen externe diensten, geen telemetrie. Alle data blijft op de machine van de gebruiker.
@@ -61,17 +61,18 @@ De tool schetst uitsluitend de **SOLL-situatie**: wat nodig is. De analyse van d
 
 ```mermaid
 flowchart TD
-    D[Deliverable: datapunt] --> T1[Transformatie]
-    T1 --> A[Datapunt]
-    T1 --> B[Datapunt]
-    A --> T2[Transformatie]
-    T2 --> S1[Brongegeven]
-    T2 --> S2[Brongegeven]
-    B --> T3[Transformatie]
-    T3 --> S2
+    D[Deliverable: datapunt]
+    T1[Transformatie] --> D
+    A[Datapunt] --> T1
+    B[Datapunt] --> T1
+    T2[Transformatie] --> A
+    S1[Brongegeven] --> T2
+    S2[Brongegeven] --> T2
+    T3[Transformatie] --> B
+    S2 --> T3
 ```
 
-Pijlen lopen van het resultaat naar wat daarvoor nodig is (de leesrichting "wat heb je nodig?"). Het onderliggende model is een gerichte graaf (netwerk). Het toont als boom met de deliverable bovenaan. Een gedeeld knooppunt blijft één element.
+Visuele pijlen lopen van input via transformatie naar resultaat, richting de deliverable bovenaan. Ontwerpen gebeurt terugredenerend: "wat heb je nodig?". Het onderliggende model is een gerichte graaf (netwerk). Een gedeeld knooppunt blijft één element. Intern bewaren afhankelijkheden hun bestaande richting "resultaat heeft nodig": `source` is het afhankelijke resultaat, `target` het benodigde element. Layout en analyses volgen die richting; alleen de presentatie en de tekeninteractie gebruiken de omgekeerde gegevensstroom.
 
 ### 4.2 Canvas
 
@@ -107,7 +108,7 @@ Een voorkomen van een catalogusitem in een canvas. Verwijzing naar de catalogus 
 - `intermediate`: heeft een producerende transformatie en wordt als input gebruikt.
 - `result`: heeft een producerende transformatie en wordt niet als input gebruikt (of is deliverable).
 
-Een datapunt heeft **hoogstens één producerende transformatie**. Alternatieven worden binnen de transformatie beschreven als beslisregel.
+Een datapunt heeft bij voorkeur **hoogstens één producerende transformatie**. Alternatieven worden binnen de transformatie beschreven als beslisregel. Een extra producerende relatie blijft bewaard en krijgt een waarschuwing; alle relaties tellen mee bij bereikbaarheid en afgeleide rollen.
 
 ### 4.5 Transformatie (`Transformation`)
 
@@ -116,12 +117,24 @@ Wat nodig is om van input naar output te komen.
 | Veld | Opmerking |
 |---|---|
 | naam | vrije tekst |
-| type | berekening, beslisregel, opzoeking, extractie, validatie, menselijke interpretatie |
+| realisatietype | Forcze-uitvraag/beoordeling, API, Automatisering, Agentic/genAI; hoofdkeuze voor kaart en eigenschappen |
+| logisch type | optioneel: berekening, beslisregel, opzoeking, extractie, validatie, menselijke interpretatie |
 | logica | vrije tekst |
 | status | `described`, `undescribed`, `assumed` |
+| beschikbaarheid | `available`, `toBuild`, `undetermined`; onafhankelijk van ontwerpzekerheid |
+| EPIC-nummer | optionele verwijzing, zichtbaar bij Nog te bouwen; verbergen wist de tekst niet |
 | notities | vrije tekst |
 
 Vorm: **meerdere inputs, precies één output**. Meerdere outputs zijn meerdere transformaties. De output mag inhoudelijk een lijst zijn. Dat is een eigenschap van het catalogusitem en heeft geen invloed op de verbinding.
+
+De typespecifieke UI bevat uitsluitend beschrijvende eigenschappen:
+
+- **Forcze:** uitvraag, beoordeling of beide, plus uitvraag- of beoordelingsinstructie.
+- **API:** API-/operatienaam, beschrijving en input-/outputlabels uit de graaf. Geen requestconfiguratie of credentials.
+- **Automatisering:** businessrule en beschrijving van toepassingsvoorwaarden.
+- **Agentic/genAI:** taak/instructie, kaders en beschrijving van menselijke controle.
+
+Typespecifieke teksten blijven behouden bij wisselen van type. Logica blijft dezelfde gedeelde beschrijving van de werking. Beschikbaarheid begint bij nieuwe en gemigreerde transformaties op **Nog te bepalen** en verandert de gatentelling niet. Bestaande v1-transformaties krijgen bij migratie **Automatisering**, met behoud van hun logische type, logica en relaties.
 
 ### 4.6 Proces (`Process`)
 
@@ -137,6 +150,8 @@ Een **gat** is een datapunt met status `missing` of `assumed`, of een transforma
 - Elk knooppunt toont **"onderliggende gaten: n"** (aantal gaten in de onderliggende boom). Dit is een telling, geen betrouwbaarheidsscore.
 - Per deliverable is er een **gatenoverzicht**.
 
+Tellingen gebruiken unieke bereikbare elementen, ook bij gedeelde knooppunten en cycli. Een knooppunt telt zichzelf niet mee bij onderliggende gaten; het deliverable-overzicht toont ook het eigen gat. Nieuwe datapunten beginnen als `missing`, transformaties als `undescribed`.
+
 ### 5.2 Signalering in plaats van validatie
 
 De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) op:
@@ -145,6 +160,7 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 - transformatie zonder input of zonder output
 - datapunt zonder producerende transformatie (brongegeven: "waar komt dit vandaan?")
 - elementen die bij geen enkel proces horen
+- directe verbindingen tussen gegevens: "Transformatie nog niet beschreven"; de verbinding blijft bewaard
 
 ### 5.3 Weergave en interactie
 
@@ -154,6 +170,12 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 - Undo/redo.
 - Filter en kleur per proces.
 
+De werkruimte heeft links canvassen en processen, centraal de graaf en rechts eigenschappen. Invoer begint bij de deliverable. Cyclische relaties krijgen afwijkende pijlen. Inklappen verbergt gedeelde elementen alleen als geen andere open tak ze nodig heeft. ELK is de voorkeurslayout, te verifiëren met een proef.
+
+**Input toevoegen** op een gegevenskaart biedt een bestaand of nieuw gegeven en maakt een directe verbinding. Klik op de pijl of de zichtbare plus om een van de vier transformatietypen te kiezen. Invoegen vervangt uitsluitend die verbinding door twee verbindingen en een transformatie; gedeelde relaties blijven behouden. Dit is één herstelbare bewerking. Klikken op een verbinding met een bestaande transformatie opent de eigenschappen van die stap, zonder een tweede transformatie in te voegen. De werkbalk en sneltoets blijven alternatieven om een losse transformatie te maken.
+
+Verwijderen van een graafelement verwijdert alleen dat element en zijn verbindingen, niet de onderliggende tak. Gebruikte catalogusitems blijven behouden tenzij een vervangend item wordt gekozen. Cataloguswijzigingen werken direct door in alle gekoppelde canvassen.
+
 ## 6. Opslag en delen
 
 - **IndexedDB** (via Dexie) in de browser. Geen localStorage vanwege de limiet en structuur.
@@ -161,8 +183,11 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 - De **catalogus** is globaal en staat in eigen opslag.
 - **JSON-export en -import** van een canvas voor delen en back-up. Het exportbestand bevat een `schemaVersion` en een snapshot van de gebruikte catalogusitems, zodat het zelfstandig te openen is.
 - Bij import worden catalogusitems samengevoegd met melding bij conflicten (zelfde term, andere definitie).
+- Bij een definitieconflict blijven beide items behouden onder herkenbaar onderscheiden termen; het geïmporteerde canvas behoudt zijn definitie. Technisch onleesbare of niet-ondersteunde bestanden worden met uitleg geweigerd, zonder gedeeltelijke wijzigingen. Inhoudelijke modelconflicten worden alleen gesignaleerd.
 - Migraties op `schemaVersion` zijn verplicht bij modelwijzigingen.
+- Schemaversie 2 voegt realisatietype, beschikbaarheid, EPIC en typespecifieke beschrijvingen toe. IndexedDB v1 en JSON-bestanden v1 migreren automatisch; de interne afhankelijkheidsrichting verandert niet.
 - Let op: IndexedDB is gebonden aan adres en poort. Daarom draait de app altijd op dezelfde vaste poort.
+- Wijzigingen worden automatisch opgeslagen met zichtbare status en foutmelding. Undo/redo geldt voor de geopende appsessie, inclusief catalogusbewerkingen. Een voorlopig cataloguslabel voorkomt blokkeren bij onvolledige invoer.
 
 ## 7. Technische keuzes
 
@@ -179,10 +204,11 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 
 ### Draaien
 
+- Node.js en npm zijn vereist en mogen worden geïnstalleerd.
 - Voor ontwikkeling: `npm run dev`.
-- Voor gebruik: een statische build (`dist`), geserveerd door één zelfstandige **Windows `.exe`** in de bronmap (voorstel: Go, bevat de build, geen Node of Python nodig). De exe serveert op een **vaste poort (4173)**, opent de browser en geeft een duidelijke foutmelding als de poort bezet is.
+- Voor gebruik: `npm run build` gevolgd door `npm run preview`. Open zelf **http://localhost:4173**. Beide servers binden alleen lokaal en stoppen met een foutmelding als de poort bezet is; nooit stil uitwijken naar een andere poort.
+- Geen eigen executable, installer of applicatiebackend.
 - De JSON-export blijft de back-up.
-- Mogelijk gevolg: SmartScreen-waarschuwing bij een niet-gesigneerde exe.
 
 ## 8. Scope
 
@@ -196,7 +222,7 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 - Signalering
 - Undo/redo
 - Opslag in IndexedDB, JSON-export en -import
-- Launcher-exe
+- Handmatig lokaal starten met npm op vaste poort 4173
 
 ### Roadmap (niet in v1)
 
@@ -224,13 +250,22 @@ De tool legt geen harde regels op. Wel wijst de UI (ook in het gatenoverzicht) o
 | 8 | Geen harde validaties, alleen signalering. |
 | 9 | Automatische top-down layout, geen handmatig verslepen. |
 | 10 | Undo/redo en JSON-export in v1, snapshots later. |
-| 11 | Draaien via zelfstandige exe op vaste poort. |
+| 11 | Gewijzigd: handmatig starten met npm op http://localhost:4173; geen eigen exe op de werkcomputer. |
+| 12 | Volledige v1 in werkende deelstappen; Node.js/npm is beschikbaar of toegestaan. |
+| 13 | Modelconflicten blijven behouden met signalering; ook extra producerende relaties. |
+| 14 | Gaten uniek tellen; cycli afwijkend tonen; gedeelde open takken blijven zichtbaar bij inklappen. |
+| 15 | Import behoudt beide conflicterende definities met onderscheiden termen. |
+| 16 | Automatisch opslaan en sessiegebonden undo/redo, inclusief globale cataloguswijzigingen. |
+| 17 | Nieuwe elementen starten onzeker; verwijderen veroorzaakt geen cascade naar onderliggende elementen. |
+| 18 | Pijlen tonen input → transformatie → resultaat, met de deliverable bovenaan. Interne afhankelijkheden blijven resultaat → benodigd element. |
+| 19 | Transformaties via klikken op een directe gegevensverbinding invoegen; bestaande transformaties via hun verbinding openen. Input toevoegen op de kaart biedt bestaand of nieuw gegeven. |
+| 20 | Vier hoofdtypen met eigen UI: Forcze, API, Automatisering en Agentic/genAI. Alleen toekomstige, beschrijvende realisatie; geen uitvoering of externe koppelingen. Logisch type blijft optioneel. |
+| 21 | Beschikbaar, Nog te bouwen en Nog te bepalen staan los van ontwerpzekerheid. EPIC is optioneel bij Nog te bouwen; verborgen tekst blijft behouden. |
+| 22 | Op uitdrukkelijke gebruikerskeuze worden alle v1-transformaties Automatisering. Schemaversie 2 behoudt oude logica, typen en verbindingen bij opslag- en bestandsmigratie. |
 
 ### Open vragen
 
-- Exacte layoutweergave van cycli.
-- Keuze tussen ELK en dagre na een proef met gedeelde knooppunten.
-- Handtekening of distributie van de exe.
+- Geen productvragen voor de eerste bouwopdracht. ELK wordt technisch beproefd op gedeelde knooppunten en cycli; terugverwijzende pijlen worden afwijkend getekend.
 
 ## 10. Regels voor AI-agents
 
