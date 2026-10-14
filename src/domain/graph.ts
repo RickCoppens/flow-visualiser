@@ -56,7 +56,7 @@ export function signalsFor(canvas: Canvas): Signal[] {
     if (cycles.has(edge.id)) signals.push({ elementId: edge.source, message: 'Cyclus: afhankelijkheid verwijst terug.' })
     const sourceIsPoint = canvas.dataPoints.some(point => point.id === edge.source)
     const targetIsPoint = canvas.dataPoints.some(point => point.id === edge.target)
-    if (sourceIsPoint && targetIsPoint) signals.push({ elementId: edge.source, message: 'Transformatie nog niet beschreven. Klik op de plus op de pijl om een transformatie in te voegen.' })
+    if (sourceIsPoint && targetIsPoint) signals.push({ elementId: edge.source, message: 'Transformatie nog niet beschreven. Klik op de pijl om een transformatie in te voegen.' })
     else if (!sourceIsPoint && !targetIsPoint) signals.push({ elementId: edge.source, message: 'Verbinding tussen transformaties; beschrijf het tussenliggende gegeven.' })
   }
   return signals

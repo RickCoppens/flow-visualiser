@@ -3,6 +3,7 @@ import { fixture } from '../src/domain/fixtures.test-helper'
 import { exportCanvas } from '../src/exchange/files'
 import { legacyCanvasSchema } from '../src/domain/migration'
 import { createTransformation } from '../src/domain/model'
+import { readFile } from 'node:fs/promises'
 
 test.afterEach(async ({ page }, info) => {
   if (info.status !== info.expectedStatus) await info.attach('graafdiagnose', {
@@ -19,9 +20,22 @@ test.afterEach(async ({ page }, info) => {
 
 async function startCanvas(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Maak je eerste canvas', exact: true }).click()
-  await page.getByRole('button', { name: 'Voeg je eerste deliverable toe', exact: true }).click()
+  await page.getByRole('main', { name: 'Graafwerkruimte' }).getByRole('button', { name: 'Nieuw canvas', exact: true }).click()
+  await page.getByRole('button', { name: 'Deliverable toevoegen', exact: true }).click()
   await expect(page.getByLabel('Status datapunt')).toHaveValue('missing')
+  await openNavigation(page)
+}
+async function openNavigation(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Navigatie', exact: true })
+  if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click()
+}
+async function openAttention(page: Page, category: 'Onzekerheden' | 'Structuursignalen') {
+  await page.locator('.attention-menu summary').click()
+  await page.locator('.attention-dropdown').getByRole('button', { name: new RegExp(`^${category}`) }).click()
+}
+async function openTransformation(page: Page) {
+  await page.locator('.edge-insert').last().focus()
+  await page.getByRole('button', { name: 'Transformatie invoegen', exact: true }).click()
 }
 async function editLabel(page: Page, term: string) {
   await page.getByRole('button', { name: 'Item bewerken', exact: true }).click()
@@ -30,10 +44,11 @@ async function editLabel(page: Page, term: string) {
   await page.getByRole('button', { name: 'Eigenschappen', exact: true }).click()
 }
 async function saved(page: Page) {
-  await expect(page.getByText('Lokaal opgeslagen', { exact: false })).toBeVisible()
+  await expect(page.getByText('Opslaan…', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('alert').filter({ hasText: 'Opslaan mislukt' })).toHaveCount(0)
 }
 
-test('eerste beslisboom, bewerken, gaten, undo en herladen', async ({ page }) => {
+test('eerste beslisboom, bewerken, onzekerheden, undo en herladen', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   const external: string[] = []
@@ -44,7 +59,7 @@ test('eerste beslisboom, bewerken, gaten, undo en herladen', async ({ page }) =>
   await page.getByRole('button', { name: 'Input toevoegen: Resultaatlabel', exact: true }).click()
   await page.getByRole('button', { name: '+ Nieuw inputgegeven', exact: true }).click()
   await editLabel(page, 'Bronlabel')
-  await page.getByRole('button', { name: 'Transformatie invoegen', exact: true }).click()
+  await openTransformation(page)
   await page.getByRole('button', { name: /^Automatisering/ }).click()
   await page.getByLabel('Naam transformatie').fill('Afleidingsregel')
   await page.getByLabel('Naam transformatie').press('Tab')
@@ -61,8 +76,9 @@ test('eerste beslisboom, bewerken, gaten, undo en herladen', async ({ page }) =>
   await page.reload()
   await expect(page.locator('.element-node')).toHaveCount(3)
   await expect(page.locator('.element-node strong').filter({ hasText: 'Bronlabel' })).toBeVisible()
-  await page.getByRole('button', { name: 'Gaten', exact: true }).click()
-  await expect(page.getByText('2 unieke gaten, inclusief de deliverable')).toBeVisible()
+  await openAttention(page, 'Onzekerheden')
+  await expect(page.getByText('2 unieke onzekerheden, inclusief de deliverable')).toBeVisible()
+  await page.getByRole('button', { name: /^Structuursignalen/ }).click()
   await expect(page.getByText('Brongegeven: waar komt dit vandaan?')).toBeVisible()
   expect(errors).toEqual([])
   expect(external).toEqual([])
@@ -80,19 +96,19 @@ test('import/export, catalogusconflict en corrupte import', async ({ page }) => 
   await page.getByLabel('Definitie', { exact: true }).fill('Lokale omschrijving')
   await page.getByLabel('Definitie', { exact: true }).press('Tab')
   await page.locator('input[type=file]').setInputFiles(path!)
-  await expect(page.getByRole('status')).toContainText('Catalogusconflicten')
-  await expect(page.locator('.canvas-list button')).toHaveCount(2)
+  await expect(page.getByRole('status').filter({ hasText: 'Catalogusconflicten' })).toBeVisible()
+  await expect(page.locator('.canvas-entry')).toHaveCount(2)
   await expect(page.locator('.element-node strong')).toContainText('Resultaatlabel (import)')
   await page.locator('input[type=file]').setInputFiles({ name: 'onleesbaar.json', mimeType: 'application/json', buffer: Buffer.from('{') })
   await expect(page.getByRole('alert')).toContainText('geen leesbare JSON')
-  await expect(page.locator('.canvas-list button')).toHaveCount(2)
+  await expect(page.locator('.canvas-entry')).toHaveCount(2)
 })
 
 test('cataloguswijziging over canvassen en herstel, veilig verwijderen', async ({ page }) => {
   await startCanvas(page)
   await editLabel(page, 'Gedeelde term')
   await page.getByLabel('Nieuw canvas', { exact: true }).click()
-  await page.getByRole('button', { name: 'Voeg je eerste deliverable toe', exact: true }).click()
+  await page.getByRole('button', { name: 'Deliverable toevoegen', exact: true }).click()
   await page.getByRole('combobox', { name: 'Catalogusitem', exact: true }).selectOption({ label: 'Gedeelde term' })
   await editLabel(page, 'Gewijzigde term')
   await page.locator('.canvas-list button').first().click()
@@ -111,15 +127,25 @@ test('cataloguswijziging over canvassen en herstel, veilig verwijderen', async (
   await expect(page.locator('.element-node')).toHaveCount(1)
 })
 
-test('toetsenbordbediening en smal scherm', async ({ page }) => {
+test('geen eigen sneltoetsen, wel knoppen, Tab en Enter op een smal scherm', async ({ page }) => {
   await startCanvas(page)
   await page.getByRole('button', { name: 'Eigenschappen', exact: true }).focus()
-  await page.keyboard.press('Alt+t')
+  for (const shortcut of ['Alt+t', 'Alt+d', 'Control+z', 'Control+Shift+z', 'Control+y', 'Meta+z', 'Meta+Shift+z', 'Meta+y']) {
+    await page.keyboard.press(shortcut)
+    await expect(page.locator('.element-node')).toHaveCount(1)
+    await expect(page.getByLabel('Status datapunt')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Opnieuw uitvoeren', exact: true })).toBeDisabled()
+  }
+  await page.getByRole('button', { name: 'Input toevoegen: Nieuw resultaat', exact: true }).click()
+  await page.getByRole('button', { name: '+ Nieuw inputgegeven', exact: true }).click()
+  await openTransformation(page)
   await page.getByRole('button', { name: /^Automatisering/ }).click()
   await expect(page.getByLabel('Naam transformatie')).toBeVisible()
-  await page.getByRole('button', { name: 'Eigenschappen', exact: true }).focus()
-  await page.keyboard.press('Alt+d')
-  await expect(page.locator('.element-node')).toHaveCount(3)
+  await page.getByLabel('Naam transformatie').focus()
+  await page.keyboard.press('Tab')
+  await expect(page.getByLabel('Type transformatie', { exact: true })).toBeFocused()
+  await page.getByRole('button', { name: '+ Benodigd datapunt', exact: true }).click()
+  await expect(page.locator('.element-node')).toHaveCount(4)
   await page.getByRole('button', { name: 'Selectie sluiten', exact: true }).click()
   await page.getByRole('group', { name: 'Nieuw resultaat', exact: true }).focus()
   await page.keyboard.press('Enter')
@@ -132,12 +158,13 @@ test('toetsenbordbediening en smal scherm', async ({ page }) => {
 test('gedeelde takken, procesfilter, cycli en producerconflicten', async ({ page }) => {
   const workspace = fixture()
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Maak je eerste canvas', exact: true })).toBeVisible()
+  await expect(page.getByRole('main', { name: 'Graafwerkruimte' }).getByRole('button', { name: 'Nieuw canvas', exact: true })).toBeVisible()
   await page.locator('input[type=file]').setInputFiles({
     name: 'ontwerp.json', mimeType: 'application/json',
     buffer: Buffer.from(exportCanvas(workspace.canvases[0], workspace.catalog)),
   })
   await expect(page.locator('.element-node')).toHaveCount(5)
+  await openNavigation(page)
   await expect(page.locator('.node-kind span').filter({ hasText: 'Gedeeld' })).toHaveCount(1)
   await page.locator('.process-list button').filter({ hasText: /^Proces A/ }).click()
   await expect(page.locator('.element-node')).toHaveCount(3)
@@ -184,9 +211,10 @@ test('werkruimte op desktop en kleiner scherm vastleggen', async ({ page }) => {
   canvas.transformations.push({ ...createTransformation('forcze'), name: 'Uitvraag of beoordeling in Forcze' }, { ...createTransformation('agentic'), name: 'Beschrijving van agentic afleiding' })
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('/')
-  await expect(page.getByRole('button', { name: 'Maak je eerste canvas', exact: true })).toBeVisible()
+  await expect(page.getByRole('main', { name: 'Graafwerkruimte' }).getByRole('button', { name: 'Nieuw canvas', exact: true })).toBeVisible()
   await page.locator('input[type=file]').setInputFiles({ name: 'ontwerp.json', mimeType: 'application/json', buffer: Buffer.from(exportCanvas(workspace.canvases[0], workspace.catalog)) })
   await expect(page.getByRole('group', { name: 'Resultaat', exact: true })).toBeVisible()
+  await openNavigation(page)
   await page.getByRole('button', { name: 'Alles in beeld', exact: true }).click()
   await page.getByRole('group', { name: 'Bewerking A', exact: true }).click()
   const contrastChecks = await page.evaluate(() => {
@@ -197,7 +225,7 @@ test('werkruimte op desktop en kleiner scherm vastleggen', async ({ page }) => {
       })
       return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722
     }
-    return ['.sidebar .section-heading h2', '.sidebar-bottom', '.canvas-list button.active', '.toolbar-actions .primary', '.node-status', '.node-kind', '.node-footer', '.node-realization', '.availability', '.inspector-tabs .active', '.field select'].flatMap(selector => [...document.querySelectorAll(selector)].map(element => {
+    return ['.sidebar .section-heading h2', '.canvas-list button.active', '.header-actions .primary', '.node-status', '.node-kind', '.node-footer', '.node-realization', '.availability', '.inspector-tabs .active', '.field select'].flatMap(selector => [...document.querySelectorAll(selector)].map(element => {
       const style = getComputedStyle(element)
       let ancestor: Element | null = element
       let background = 'rgba(0, 0, 0, 0)'
@@ -240,7 +268,7 @@ test('pijlen naar resultaat, invoegen via toetsenbord, herstel en vier eigen eig
     await page.keyboard.press('Enter')
     await page.getByRole('button', { name: 'Annuleren', exact: true }).click()
     await expect(page.locator('.element-node.transformation')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Transformatie invoegen', exact: true }).click()
+    await openTransformation(page)
     await page.getByRole('button', { name: /^API / }).click()
     await expect(page.locator('.element-node.transformation')).toHaveCount(1)
     await expect(page.getByRole('button', { name: 'Transformatie invoegen', exact: true })).toHaveCount(0)
@@ -256,10 +284,10 @@ test('pijlen naar resultaat, invoegen via toetsenbord, herstel en vier eigen eig
     await page.getByLabel('API en operatie', { exact: true }).fill('Operatielabel')
     await page.getByLabel('Beschrijving API-uitvraag', { exact: true }).fill('Beschrijving van de gewenste afleiding')
     await page.getByLabel('Beschikbaarheid', { exact: true }).selectOption('toBuild')
-    await page.getByLabel('EPIC-nummer', { exact: true }).fill('EPIC-verwijzing')
+    await page.getByLabel('EPIC-nummer (optioneel)', { exact: true }).fill('EPIC-verwijzing')
     await expect(page.locator('.transformation .availability')).toHaveText('Nog te bouwen')
     await page.getByLabel('Beschikbaarheid', { exact: true }).selectOption('available')
-    await expect(page.getByLabel('EPIC-nummer', { exact: true })).toHaveCount(0)
+    await expect(page.getByLabel('EPIC-nummer (optioneel)', { exact: true })).toHaveCount(0)
     await expect(page.locator('.transformation .availability')).toHaveText('Beschikbaar')
     await page.getByLabel('Type transformatie', { exact: true }).selectOption('forcze')
     await expect(page.getByLabel('API en operatie', { exact: true })).toHaveCount(0)
@@ -282,7 +310,7 @@ test('pijlen naar resultaat, invoegen via toetsenbord, herstel en vier eigen eig
     await expect(page.getByLabel('Kaders voor genAI', { exact: true })).toHaveValue('Beschrijving van de kaders')
     await expect(page.getByLabel('Menselijke controle', { exact: true })).toHaveValue('Beschrijving van controle')
     await page.getByLabel('Beschikbaarheid', { exact: true }).selectOption('toBuild')
-    await expect(page.getByLabel('EPIC-nummer', { exact: true })).toHaveValue('EPIC-verwijzing')
+    await expect(page.getByLabel('EPIC-nummer (optioneel)', { exact: true })).toHaveValue('EPIC-verwijzing')
     await page.getByLabel('Type transformatie', { exact: true }).selectOption('api')
     await expect(page.getByLabel('API en operatie', { exact: true })).toHaveValue('Operatielabel')
     await page.getByLabel('Type transformatie', { exact: true }).selectOption('forcze')
@@ -300,7 +328,7 @@ test('bestaande input hergebruiken, ontbrekende transformatie signaleren en oude
     const workspace = fixture()
     const legacy = legacyCanvasSchema.parse({ ...workspace.canvases[0], schemaVersion: 1 })
     await page.goto('/')
-    await expect(page.getByRole('button', { name: 'Maak je eerste canvas', exact: true })).toBeVisible()
+    await expect(page.getByRole('main', { name: 'Graafwerkruimte' }).getByRole('button', { name: 'Nieuw canvas', exact: true })).toBeVisible()
     await page.locator('input[type=file]').setInputFiles({ name: 'ouder-ontwerp.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, canvas: legacy, catalog: workspace.catalog })) })
     await expect(page.locator('.transformation.realization-automation')).toHaveCount(2)
     await page.getByRole('group', { name: 'Bewerking A', exact: true }).click()
@@ -311,7 +339,7 @@ test('bestaande input hergebruiken, ontbrekende transformatie signaleren en oude
     await page.getByRole('button', { name: 'Input koppelen', exact: true }).click()
     await expect(page.locator('.element-node')).toHaveCount(5)
     await expect(page.getByText(/Transformatie nog niet beschreven/)).toBeVisible()
-    await page.getByRole('button', { name: 'Transformatie invoegen', exact: true }).click()
+    await openTransformation(page)
     await page.getByRole('button', { name: /^Forcze-uitvraag/ }).click()
     await expect(page.locator('.element-node')).toHaveCount(6)
     await expect(page.locator('.element-node strong').filter({ hasText: 'Gedeeld label' })).toHaveCount(1)
@@ -322,7 +350,9 @@ test('bestaande input hergebruiken, ontbrekende transformatie signaleren en oude
 test('getekende verbinding volgt input naar resultaat en blijft na herladen zichtbaar', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await startCanvas(page)
-  await page.getByRole('button', { name: '+ Datapunt', exact: true }).click()
+  await page.getByRole('button', { name: 'Input toevoegen: Nieuw resultaat', exact: true }).click()
+  await page.getByRole('button', { name: '+ Nieuw inputgegeven', exact: true }).click()
+  await page.getByRole('button', { name: 'Verbinding verwijderen: Nieuw resultaat', exact: true }).click()
   const input = page.getByRole('group', { name: 'Nieuw datapunt', exact: true }).locator('.react-flow__handle.source')
   const output = page.getByRole('group', { name: 'Nieuw resultaat', exact: true }).locator('.react-flow__handle.target')
   await expect(input).toBeVisible()
@@ -355,7 +385,7 @@ test('opslagfout is zichtbaar, werk blijft beschikbaar en opnieuw opslaan herste
   })
   await page.getByLabel('Status datapunt').selectOption('assumed')
   await expect(page.getByRole('alert')).toContainText('Opslaan mislukt')
-  await expect(page.locator('.local-status')).toContainText('Niet opgeslagen')
+  await expect(page.locator('.local-status')).toHaveCount(0)
   await expect(page.getByLabel('Status datapunt')).toHaveValue('assumed')
   await expect(page.getByRole('button', { name: 'Exporteren', exact: true })).toBeEnabled()
   await page.evaluate(() => window.dispatchEvent(new Event('restore-storage')))
@@ -364,4 +394,201 @@ test('opslagfout is zichtbaar, werk blijft beschikbaar en opnieuw opslaan herste
   await page.reload()
   await page.getByRole('group', { name: 'Nieuw resultaat', exact: true }).click()
   await expect(page.getByLabel('Status datapunt')).toHaveValue('assumed')
+})
+
+test('werkruimte bevat alleen functionele bediening en korte lege toestanden', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Geen canvas geopend' })).toBeVisible()
+  await expect(page.locator('.brand, .brand-mark, .sidebar-bottom, .empty-diagram, .help-block, .graph-caption, .local-status')).toHaveCount(0)
+  await expect(page.getByText('Flow Visualiser', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Lokaal opgeslagen', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Sneltoetsen', { exact: true })).toHaveCount(0)
+  await page.getByRole('main', { name: 'Graafwerkruimte' }).getByRole('button', { name: 'Nieuw canvas', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Canvas is leeg' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Canvasnaam wijzigen', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Deliverable toevoegen', exact: true }).click()
+  await expect(page.getByText('1 datapunten · 0 transformaties', { exact: true })).toBeVisible()
+  await expect(page.locator('.app-header h1')).toHaveText('Nieuw canvas')
+  await expect(page.locator('.app-header')).toContainText('1 datapunten · 0 transformaties')
+  await expect(page.locator('.canvas-toolbar')).toHaveCount(0)
+  await expect(page.getByLabel('Status datapunt')).toHaveValue('missing')
+  await expect(page.getByRole('button', { name: 'Ongedaan maken', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Ongedaan maken', exact: true })).toHaveAttribute('title', 'Ongedaan maken')
+  await expect(page.getByRole('button', { name: 'Opnieuw uitvoeren', exact: true })).toHaveAttribute('title', 'Opnieuw uitvoeren')
+})
+
+test('placeholders verduidelijken lege beschrijvingen zonder opgeslagen waarden', async ({ page }) => {
+  await startCanvas(page)
+  await page.getByRole('button', { name: 'Item bewerken', exact: true }).click()
+  const definition = page.getByLabel('Definitie', { exact: true })
+  await expect(definition).toHaveAttribute('placeholder', 'Beschrijf wat dit gegeven betekent')
+  await expect(definition).toHaveValue('')
+  expect(await definition.evaluate(element => element.matches(':placeholder-shown'))).toBe(true)
+  await expect(page.getByLabel('Term', { exact: true })).not.toHaveAttribute('placeholder')
+  await expect(page.getByLabel('Kwaliteitscriteria', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf waaraan het gegeven moet voldoen')
+  await expect(page.getByLabel('Synoniemen', { exact: true })).toHaveAccessibleDescription('Eén label per regel.')
+  const downloading = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Exporteren', exact: true }).click()
+  const download = await downloading
+  const exported = JSON.parse(await readFile((await download.path())!, 'utf8'))
+  expect(exported.catalog[0].definition).toBe('')
+  expect(exported.catalog[0].qualityCriteria).toBe('')
+  await definition.fill('Beschrijving van het gewenste gegeven')
+  await definition.press('Tab')
+  await saved(page)
+  await page.reload()
+  await page.getByRole('group', { name: 'Nieuw resultaat', exact: true }).click()
+  await page.getByRole('button', { name: 'Item bewerken', exact: true }).click()
+  await expect(definition).toHaveValue('Beschrijving van het gewenste gegeven')
+  expect(await definition.evaluate(element => element.matches(':placeholder-shown'))).toBe(false)
+  await page.getByRole('button', { name: 'Input toevoegen: Nieuw resultaat', exact: true }).click()
+  await page.getByRole('button', { name: '+ Nieuw inputgegeven', exact: true }).click()
+  await openTransformation(page)
+  await page.getByRole('button', { name: /^API / }).click()
+  await expect(page.getByLabel('API en operatie', { exact: true })).toHaveAttribute('placeholder', 'Naam van de API en de benodigde operatie')
+  await expect(page.getByLabel('API en operatie', { exact: true })).toHaveAccessibleDescription('Alleen een naam of beschrijving, geen credentials of requestwaarden.')
+  await expect(page.getByLabel('Beschrijving API-uitvraag', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf welke gegevens de operatie moet leveren')
+  await expect(page.getByLabel('Beschrijving API-uitvraag', { exact: true })).toHaveValue('')
+  await page.getByLabel('Type transformatie', { exact: true }).selectOption('forcze')
+  await expect(page.getByLabel('Uitvraag of beoordelingsinstructie', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf welke gegevens worden uitgevraagd of beoordeeld')
+  await page.getByLabel('Type transformatie', { exact: true }).selectOption('automation')
+  await expect(page.getByLabel('Businessrule', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf hoe de inputs het resultaat bepalen')
+  await expect(page.getByLabel('Voorwaarden voor de businessrule', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf wanneer de regel van toepassing is')
+  await page.getByLabel('Type transformatie', { exact: true }).selectOption('agentic')
+  await expect(page.getByLabel('Taak en instructie voor genAI', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf de taak en de verwachte vorm van het resultaat')
+  await expect(page.getByLabel('Kaders voor genAI', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf de grenzen en vereisten voor de taak')
+  await expect(page.getByLabel('Menselijke controle', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf wat een mens moet controleren')
+  await expect(page.getByLabel('Notities transformatie', { exact: true })).not.toHaveAttribute('placeholder')
+  await openNavigation(page)
+  await page.getByRole('button', { name: 'Processen beheren', exact: true }).click()
+  await expect(page.getByLabel('Procesbeschrijving', { exact: true })).toHaveAttribute('placeholder', 'Beschrijf het gewenste resultaat en de afbakening')
+})
+
+test('opslagfeedback is tijdelijk en de wijziging blijft na herladen behouden', async ({ page }) => {
+  await startCanvas(page)
+  await saved(page)
+  await page.evaluate(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, 'oncomplete')
+    if (!descriptor?.set) throw new Error('Transactiefeedback kan niet worden onderschept')
+    const setComplete = descriptor.set
+    let complete: (() => void) | undefined
+    let released = false
+    Object.defineProperty(IDBTransaction.prototype, 'oncomplete', {
+      ...descriptor,
+      set(this: IDBTransaction, handler: IDBTransaction['oncomplete']) {
+        setComplete.call(this, function (this: IDBTransaction, event: Event) {
+          if (this.mode === 'readwrite' && !released) complete = () => handler?.call(this, event)
+          else handler?.call(this, event)
+        })
+      },
+    })
+    window.addEventListener('release-save', () => {
+      released = true
+      Object.defineProperty(IDBTransaction.prototype, 'oncomplete', descriptor)
+      complete?.()
+    }, { once: true })
+  })
+  await page.getByLabel('Status datapunt').selectOption('known')
+  await expect(page.getByRole('status')).toHaveText('Opslaan…')
+  await page.evaluate(() => window.dispatchEvent(new Event('release-save')))
+  await saved(page)
+  await expect(page.getByText('Lokaal opgeslagen', { exact: true })).toHaveCount(0)
+  await page.reload()
+  await page.getByRole('group', { name: 'Nieuw resultaat', exact: true }).click()
+  await expect(page.getByLabel('Status datapunt')).toHaveValue('known')
+})
+
+test('compacte desktopwerkruimte: panelen, titel, aandachtspunten en hoverplus', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Geen canvas geopend' })).toBeVisible()
+  await expect(page.locator('.sidebar, .inspector')).toHaveCount(0)
+  const workspace = fixture()
+  await page.locator('input[type=file]').setInputFiles({ name: 'ontwerp.json', mimeType: 'application/json', buffer: Buffer.from(exportCanvas(workspace.canvases[0], workspace.catalog)) })
+  await expect(page.locator('.element-node')).toHaveCount(5)
+  await expect(page.locator('.canvas-toolbar')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '+ Datapunt', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '+ Transformatie', exact: true })).toHaveCount(0)
+  await expect(page.locator('.header-actions').getByRole('button', { name: '+ Deliverable', exact: true })).toBeVisible()
+  await expect(page.locator('.attention-menu summary .count')).toHaveText('8')
+  await openAttention(page, 'Onzekerheden')
+  await expect(page.getByRole('button', { name: 'Onzekerheden (5)', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('.react-flow__pane').click({ position: { x: 10, y: 10 } })
+  await expect(page.locator('.inspector')).toBeVisible()
+  await page.locator('.gap-section .result-link').first().click()
+  await expect(page.getByLabel('Status datapunt')).toBeVisible()
+  await page.locator('.react-flow__pane').click({ position: { x: 10, y: 10 } })
+  await expect(page.locator('.inspector')).toHaveCount(0)
+  const fullWidth = (await page.locator('.canvas-area').boundingBox())!.width
+  await openNavigation(page)
+  expect((await page.locator('.canvas-area').boundingBox())!.width).toBeLessThan(fullWidth)
+  await page.locator('.process-list button').filter({ hasText: /^Proces A/ }).click()
+  await expect(page.locator('.attention-menu summary .count')).toHaveText('5')
+  await page.getByRole('button', { name: 'Inklappen: Resultaat', exact: true }).click()
+  await expect(page.locator('.attention-menu summary .count')).toHaveText('5')
+  await openAttention(page, 'Structuursignalen')
+  await expect(page.getByRole('button', { name: 'Structuursignalen (2)', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Paneel sluiten', exact: true }).click()
+  await page.getByRole('button', { name: 'Alle processen', exact: true }).click()
+  await page.getByRole('button', { name: 'Uitklappen: Resultaat', exact: true }).click()
+  await page.getByRole('button', { name: /Data catalogus/ }).click()
+  await page.locator('.react-flow__pane').click({ position: { x: 10, y: 10 } })
+  await expect(page.getByLabel('Zoeken in catalogus')).toBeVisible()
+  await page.getByRole('button', { name: 'Paneel sluiten', exact: true }).click()
+  await page.getByRole('button', { name: 'Navigatie', exact: true }).click()
+  expect((await page.locator('.canvas-area').boundingBox())!.width).toBe(fullWidth)
+  await page.getByRole('button', { name: 'Canvasnaam wijzigen', exact: true }).click()
+  await page.getByLabel('Canvasnaam', { exact: true }).fill('Gewenst ontwerp')
+  await page.getByLabel('Canvasnaam', { exact: true }).press('Enter')
+  await expect(page.locator('.app-header h1')).toHaveText('Gewenst ontwerp')
+  await page.getByRole('button', { name: 'Canvasnaam wijzigen', exact: true }).click()
+  await page.getByLabel('Canvasnaam', { exact: true }).fill('Geannuleerde naam')
+  await page.getByLabel('Canvasnaam', { exact: true }).press('Escape')
+  await expect(page.locator('.app-header h1')).toHaveText('Gewenst ontwerp')
+  await page.getByRole('button', { name: 'Canvasnaam wijzigen', exact: true }).click()
+  await page.getByLabel('Canvasnaam', { exact: true }).fill('')
+  await page.locator('.attention-menu summary').click()
+  await expect(page.locator('.app-header h1')).toHaveText('Naamloos canvas')
+  await page.locator('.react-flow__pane').click({ position: { x: 10, y: 10 } })
+  await expect(page.locator('.attention-menu')).not.toHaveAttribute('open')
+  await page.getByRole('button', { name: 'Ongedaan maken', exact: true }).click()
+  await page.getByRole('button', { name: 'Input toevoegen: Resultaat', exact: true }).click()
+  await page.getByRole('button', { name: '+ Nieuw inputgegeven', exact: true }).click()
+  const edge = page.getByRole('group', { name: 'Gegevensstroom van Nieuw datapunt naar Resultaat', exact: true })
+  const plus = page.getByRole('button', { name: 'Transformatie invoegen', exact: true })
+  await expect(page.getByRole('application')).toHaveAttribute('aria-busy', 'false')
+  await page.mouse.move(10, 10)
+  await expect(plus).toHaveCSS('opacity', '0')
+  await edge.focus()
+  await expect(plus).toHaveCSS('opacity', '1')
+  await page.locator('.attention-menu summary').focus()
+  await expect(plus).toHaveCSS('opacity', '0')
+  const midpoint = await edge.locator('.react-flow__edge-path').evaluate(element => {
+    const path = element as SVGPathElement
+    const point = path.getPointAtLength(path.getTotalLength() / 2)
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!)
+    return { x: screen.x, y: screen.y }
+  })
+  await page.mouse.move(midpoint.x, midpoint.y)
+  await expect(plus).toHaveCSS('opacity', '1')
+  await plus.hover()
+  await expect(plus).toHaveCSS('opacity', '1')
+  await plus.click()
+  await page.getByRole('button', { name: /^Automatisering/ }).click()
+  await expect(page.getByLabel('Naam transformatie')).toBeVisible()
+  await page.getByRole('button', { name: 'Paneel sluiten', exact: true }).click()
+  await openNavigation(page)
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: 'Canvas verwijderen: Gewenst ontwerp', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Geen canvas geopend' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ongedaan maken', exact: true }).click()
+  await expect(page.locator('.app-header h1')).toHaveText('Gewenst ontwerp')
+  await page.getByRole('button', { name: 'Navigatie', exact: true }).click()
+  await saved(page)
+  await page.reload()
+  await expect(page.locator('.app-header h1')).toHaveText('Gewenst ontwerp')
+  await expect(page.locator('.sidebar, .inspector')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Alles in beeld', exact: true }).click()
+  await page.screenshot({ path: '.tools\\compact-desktop.png', fullPage: true, animations: 'disabled' })
 })
